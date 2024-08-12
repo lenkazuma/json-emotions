@@ -171,7 +171,7 @@ if __name__ == "__main__":
     from dotenv import load_dotenv, find_dotenv
     load_dotenv(find_dotenv(), override=True)
     st.set_page_config(
-    page_title="HenryAI - Chatbot With Image",
+    page_title="HenryAI - Chatbot With Animations",
     page_icon="🏠",
     )
 
