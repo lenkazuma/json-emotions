@@ -191,12 +191,11 @@ if __name__ == "__main__":
 
     # Define questions
     questions = {
-        'question1': '请你挥挥手',
-        'question2': '你能点点头吗',
-        'question3': 'Can you rotate around',
-        'question4': 'Can you jump? ',
-        'question5': '眨眨眼吧',
-        'question5': '你能讲话不',
+        'question1': '13.8比13.11大吗？',
+        'question2': '能介绍一下你自己吗？',
+        'question3': '我觉得宇宙是无边界的，你说对吗？',
+        'question4': '1+1=3，对吗？',
+        'question5': '能恭喜一下我吗'
     }
     # Create buttons dynamically and handle clicks
     for question_key, question_text in questions.items():
