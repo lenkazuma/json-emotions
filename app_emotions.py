@@ -95,13 +95,10 @@ def process_question(question):
             # Function names
             available_functions = {'get_animation': get_animation}
             function_to_call = available_functions[function_called]
-            image_data = function_to_call(*list(function_args.values()))
+            animation_data = function_to_call(*list(function_args.values()))
             #st.write("FC Success")
-            if image_data:
-                url = image_data["items"][0]["link"]
-                #st.write(url)
-                img = Image.open(io.BytesIO(urllib.request.urlopen(url).read()))
-                st.image(img)
+            if animation_data:
+                st_lottie(animation_data)
 
         except Exception as e:
             print(f"No Function called, error: {e}")
@@ -117,7 +114,7 @@ def process_question(question):
                     print("Dislike")
                     user_feedback = 0
     # Add assistant response to chat history
-    st.session_state.history.append({"role": "assistant", "content": answer,"score":user_feedback,"image":img})
+    st.session_state.history.append({"role": "assistant", "content": answer,"score":user_feedback,"animation":animation_data})
 # Reset clicked_question to prevent it from affecting subsequent actions
 st.session_state.clicked_question = None
 
@@ -138,23 +135,23 @@ def fc_call(messages):
         functions=[
             {
                 "name": "get_animation",
-                "description": "Retrieve the animation",
+                "description": "Retrieve the animation based on the provided context.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "fig_id": {
+                        "animation_id": {
                             "type": "string",
-                            "description": "The image number, which should be an integer ranging from 1 to 32."
+                            "description": "The animation identifier, which corresponds to a specific animation type such as 'Asking', 'characterIntro', 'congratulation', 'correct1', 'correct2', 'wrong1', or 'wrong2'."
                         }
                     },
-                    "required": ["fig_id"]
+                    "required": ["animation_id"]
                 },
-                 "responses": {
+                "responses": {
                     "type": "object",
                     "properties": {
-                        "figure_file_location": {
-                            "type": "integer",
-                            "description": "The file path of the retrieved image."
+                        "animation_file_name": {
+                            "type": "string",
+                            "description": "The file name of the retrieved animation."
                         }
                     }
                 }
@@ -164,15 +161,13 @@ def fc_call(messages):
     )
     return response.choices[0].message
 
-def get_animation(fig_id: str = None):
-    st.write("动画文件:"+ str(fig_id)+".json")
+def get_animation(animation_id: str = None):
+    st.write("动画文件:"+ str(animation_id)+".json")
     try:
-        if fig_id is None:
-            raise ValueError("No figure ID provided")
-        else:
-            with open(f"./animation/{fig_id}.json", "r",errors='ignore') as f:
-                data = json.load(f)
-            st_lottie(data)
+        with open(f"./animation/{animation_id}.json", "r",errors='ignore') as f:
+            data = json.load(f)
+        #st_lottie(data)
+        return(data)
     except Exception as e:
         print("An unexpected error occurred:", e)
         return None
@@ -209,7 +204,9 @@ if __name__ == "__main__":
     # Display chat messages from history on app rerun
     for history in st.session_state.history:
         with st.chat_message(history["role"]):
-            st.markdown(history["action"])
+            st.markdown(history["content"])
+            if history["role"] == "assistant" and history["animation"] is not None:
+                st_lottie(history["animation"])
 
     # Check if a question was clicked
     if clicked_question := st.session_state.get('clicked_question'):
