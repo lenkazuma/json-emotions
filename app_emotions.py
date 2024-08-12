@@ -5,19 +5,14 @@ from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain_community.callbacks import get_openai_callback
 import time
-import os
 import asyncio
 import json
-import urllib.request
-from PIL import Image
-import io
 from streamlit_lottie import st_lottie
 import json
 
 # Ensure an event loop is available and set it as the current event loop
 loop = asyncio.get_event_loop_policy().new_event_loop()
 asyncio.set_event_loop(loop)
-
 
 animation_list = {
     "Asking": "Asking.json - 3s - 'Which one is .....?'",
@@ -55,8 +50,6 @@ def stream_data(answer):
     for word in answer.split():
         yield word + " "
         time.sleep(0.1)
-
-
 
 
 # Process and display the question and answer
