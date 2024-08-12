@@ -4,3 +4,4 @@ openai
 langchain-community
 streamlit
 streamlit_lottie
+python-dotenv
