@@ -3,10 +3,4 @@ langchain-openai
 openai
 langchain-community
 streamlit
-chromadb
-pysqlite3-binary
-jq
-docx2txt
-pypdf
-uvicorn
-flask-cors
+streamlit_lottie
