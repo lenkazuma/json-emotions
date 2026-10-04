@@ -1,7 +1,4 @@
-langchain
-langchain-openai
-openai
-langchain-community
-streamlit
-streamlit_lottie
-python-dotenv
+openai>=1.40
+streamlit>=1.50
+streamlit-lottie>=0.0.5
+python-dotenv>=1.0
