@@ -1,212 +1,89 @@
-#OpenAI/FC/Sales_Assist/CN
+"""Chat with Mrs Fox: each reply is paired with a Lottie animation chosen by the model."""
+
+import os
 
 import streamlit as st
+from dotenv import find_dotenv, load_dotenv
 from openai import OpenAI
-from langchain_openai import ChatOpenAI
-from langchain_community.callbacks import get_openai_callback
-import time
-import asyncio
-import json
 from streamlit_lottie import st_lottie
-import json
 
-# Ensure an event loop is available and set it as the current event loop
-loop = asyncio.get_event_loop_policy().new_event_loop()
-asyncio.set_event_loop(loop)
+from chat_core import DEFAULT_MODEL, ask, choose_animation, load_animation
 
-animation_list = {
-    "Asking": "Asking.json - 3s - 'Which one is .....?'",
-    "characterIntro": "characterIntro.json - 7s - 'Hello, I am Mrs Fox, I am from Australia, I will be your tutor'",
-    "congratulation": "congratulation.json - 5s - 'Wonderful, you have completed the chapter'",
-    "correct1": "correct1.json - 3s - 'You are correct!'",
-    "correct2": "correct2.json - 3s - 'Great Job'",
-    "wrong1": "wrong1.json - 3s - 'Try again, you can do it'",
-    "wrong2": "wrong2.json - 3s - 'Let’s try again'"
-}
-llm = ChatOpenAI(
-    model_name="gpt-4o",
-    streaming=True
-)
-
-#general ask without using vectorstore,no rag
-def ask_general(question):
-    client=OpenAI()
-
-    response = client.chat.completions.create(
-        model="gpt-4o",  # Adjust to the latest available GPT-4 model
-        temperature= 0.1,
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant that kindly answers the question to any topic."},
-            {"role": "user", "content": question}
-        ]
-    )
-    return response.choices[0].message.content
-
-# Simplify button clicks handling
-def handle_button_click(question_key):
-    st.session_state.clicked_question = question_key
-
-def stream_data(answer):
-    for word in answer.split():
-        yield word + " "
-        time.sleep(0.1)
+PRESET_QUESTIONS = [
+    "13.8比13.11大吗？",
+    "能介绍一下你自己吗？",
+    "我觉得宇宙是无边界的，你说对吗？",
+    "1+1=3，对吗？",
+    "能恭喜一下我吗",
+]
+MODELS = [DEFAULT_MODEL, "gpt-4o", "gpt-4.1-mini", "gpt-4.1"]
 
 
-# Process and display the question and answer
-def process_question(question):
-    # Add user message to chat history
-    with st.chat_message("user"):
-            st.markdown(question)
+@st.cache_data(show_spinner=False)
+def cached_animation(animation_id):
+    return load_animation(animation_id)
+
+
+def render_message(index, message):
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        if message["role"] != "assistant":
+            return
+        data = cached_animation(message.get("animation")) if message.get("animation") else None
+        if data:
+            st_lottie(data, height=260, key=f"lottie-{index}")
+        st.feedback("thumbs", key=f"feedback-{index}")
+
+
+def handle_question(client, model, question):
+    history = list(st.session_state.history)
     st.session_state.history.append({"role": "user", "content": question})
-
-    answer = ask_general(question)
-    # Display assistant response in chat message container
-    with st.chat_message("assistant"):
-        st.markdown(answer)
-        prompt = f'''
-        Based on the content or tone of the provided context, select the most appropriate animation from the list below. The selected animation should accurately reflect the nature of the response, whether it’s an introduction, a question, a correct answer, an incorrect answer, or a congratulation.
-        Animation list:
-        - Asking: {animation_list['Asking']}
-        - Character Introduction: {animation_list['characterIntro']}
-        - Congratulations: {animation_list['congratulation']}
-        - Correct Answer 1: {animation_list['correct1']}
-        - Correct Answer 2: {animation_list['correct2']}
-        - Wrong Answer 1: {animation_list['wrong1']}
-        - Wrong Answer 2: {animation_list['wrong2']}
-
-        Context: {answer}
-        '''
-        messages = [{"role": "user", "content": prompt}]
-        response_message = fc_call(messages)  # Pass as list if not already handled
-        img = None  # Default result to None to handle exceptions
-        #st.write(response_message)
-        try:
-            # Which function call was invoked
-            function_called = response_message.function_call.name
-            # Extracting the arguments
-            function_args  = json.loads(response_message.function_call.arguments)
-            # Function names
-            available_functions = {'get_animation': get_animation}
-            function_to_call = available_functions[function_called]
-            animation_data = function_to_call(*list(function_args.values()))
-            #st.write("FC Success")
-            if animation_data:
-                st_lottie(animation_data)
-
-        except Exception as e:
-            print(f"No Function called, error: {e}")
-        
-        user_feedback=None
-        col1,col2,col3,col4 = st.columns([3,3,0.5,0.5])
-        with col3:
-                if st.button(":thumbsup:"):
-                    print("Like")
-                    user_feedback = 1
-        with col4:
-                if st.button(":thumbsdown:"):
-                    print("Dislike")
-                    user_feedback = 0
-    # Add assistant response to chat history
-    st.session_state.history.append({"role": "assistant", "content": answer,"score":user_feedback,"animation":animation_data})
-# Reset clicked_question to prevent it from affecting subsequent actions
-st.session_state.clicked_question = None
-
-
-## ======================================
-## Function call related
-## ======================================
-function_call_limit = 3
-def fc_call(messages):
-    client = OpenAI()
-    # Ensure messages is a list
-    if not isinstance(messages, list):
-        messages = [messages]
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        temperature=0.1,
-        functions=[
-            {
-                "name": "get_animation",
-                "description": "Retrieve the animation based on the provided context.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "animation_id": {
-                            "type": "string",
-                            "description": "The animation identifier, which corresponds to a specific animation type such as 'Asking', 'characterIntro', 'congratulation', 'correct1', 'correct2', 'wrong1', or 'wrong2'."
-                        }
-                    },
-                    "required": ["animation_id"]
-                },
-                "responses": {
-                    "type": "object",
-                    "properties": {
-                        "animation_file_name": {
-                            "type": "string",
-                            "description": "The file name of the retrieved animation."
-                        }
-                    }
-                }
-            }
-        ],
-        function_call = 'auto'
-    )
-    return response.choices[0].message
-
-def get_animation(animation_id: str = None):
-    st.write("动画文件:"+ str(animation_id)+".json")
     try:
-        with open(f"./animation/{animation_id}.json", "r",errors='ignore') as f:
-            data = json.load(f)
-        #st_lottie(data)
-        return(data)
-    except Exception as e:
-        print("An unexpected error occurred:", e)
-        return None
+        with st.spinner("Mrs Fox is thinking..."):
+            answer = ask(client, history, question, model)
+            animation = choose_animation(client, question, answer, model)
+    except Exception as exc:  # noqa: BLE001 - surface API errors in the UI
+        st.session_state.history.pop()
+        st.error(f"OpenAI request failed: {exc}")
+        return
+    st.session_state.history.append({"role": "assistant", "content": answer, "animation": animation})
 
-# Main program
+
+def main():
+    load_dotenv(find_dotenv(), override=False)
+    st.set_page_config(page_title="Chatbot With Animations", page_icon="🦊")
+    st.subheader("🦊 AI chat with Lottie animations")
+
+    with st.sidebar:
+        api_key = st.text_input(
+            "OpenAI API key",
+            type="password",
+            value=os.getenv("OPENAI_API_KEY", ""),
+            help="Kept only in this browser session. Defaults to OPENAI_API_KEY from the environment.",
+        )
+        model = st.selectbox("Model", MODELS)
+        if st.button("Clear chat"):
+            st.session_state.history = []
+
+    st.session_state.setdefault("history", [])
+
+    clicked = None
+    cols = st.columns(len(PRESET_QUESTIONS))
+    for col, question in zip(cols, PRESET_QUESTIONS):
+        if col.button(question, width="stretch"):
+            clicked = question
+    typed = st.chat_input("Your question")
+    question = typed or clicked
+
+    if question:
+        if not api_key:
+            st.warning("Enter an OpenAI API key in the sidebar first.")
+        else:
+            handle_question(OpenAI(api_key=api_key), model, question)
+
+    for index, message in enumerate(st.session_state.history):
+        render_message(index, message)
+
+
 if __name__ == "__main__":
-    import os
-    from dotenv import load_dotenv, find_dotenv
-    load_dotenv(find_dotenv(), override=True)
-    st.set_page_config(
-    page_title="HenryAI - Chatbot With Animations",
-    page_icon="🏠",
-    )
-
-    st.subheader("AI Chat with Lottie animation")
-
-    # Define questions
-    questions = {
-        'question1': '13.8比13.11大吗？',
-        'question2': '能介绍一下你自己吗？',
-        'question3': '我觉得宇宙是无边界的，你说对吗？',
-        'question4': '1+1=3，对吗？',
-        'question5': '能恭喜一下我吗'
-    }
-    # Create buttons dynamically and handle clicks
-    for question_key, question_text in questions.items():
-        if st.button(question_text):
-            handle_button_click(question_key)
-
-    if "history" not in st.session_state:
-        st.session_state.history = []
-
-    # User input for the question
-    # Display chat messages from history on app rerun
-    for history in st.session_state.history:
-        with st.chat_message(history["role"]):
-            st.markdown(history["content"])
-            if history["role"] == "assistant" and history["animation"] is not None:
-                st_lottie(history["animation"])
-
-    # Check if a question was clicked
-    if clicked_question := st.session_state.get('clicked_question'):
-        process_question(questions[clicked_question])
-
-    # Handle chat input
-    if prompt := st.chat_input("Your Question:"):
-# Ensure to reset any clicked question status before processing
-        st.session_state.clicked_question = None
-        process_question(prompt)
+    main()
